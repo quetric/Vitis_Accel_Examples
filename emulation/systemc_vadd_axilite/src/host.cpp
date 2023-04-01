@@ -17,6 +17,7 @@
 #include <iostream>
 #include <xrt/xrt_device.h>
 #include <xrt/xrt_kernel.h>
+#include <experimental/xrt_ip.h>
 #include <xrt/xrt_bo.h>
 
 int main(int argc, char** argv) {
@@ -31,6 +32,12 @@ int main(int argc, char** argv) {
     auto xclbin_uuid = dev.load_xclbin(binaryFile);
     auto idma_krnl = xrt::kernel(dev, xclbin_uuid, "idma:{idma_1}");
     auto odma_krnl = xrt::kernel(dev, xclbin_uuid, "odma:{odma_1}");
+    auto vadd = xrt::ip(dev, xclbin_uuid, "vadd:{vadd_1}");
+
+    std::cout << "Current bias is " << vadd.read_register(0) << std::endl;
+    unsigned int bias = 1;
+    vadd.write_register(0, bias);
+    std::cout << "Current bias is " << vadd.read_register(0) << std::endl;
 
     auto buf = xrt::bo(dev, 3*4, idma_krnl.group_id(0));
     
@@ -51,7 +58,27 @@ int main(int argc, char** argv) {
     buf.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     buf.read(ubuf);
 
-    if(ubuf[2] != 66){
+    if(ubuf[2] != (ubuf[0] + ubuf[1] + bias)){
+        std::cout << "Test failed, got " << ubuf[2] << std::endl;
+    } else {
+        std::cout << "Test passed" << std::endl;
+    }
+
+    std::cout << "Current bias is " << vadd.read_register(0) << std::endl;
+    bias = 42;
+    vadd.write_register(0, bias);
+    std::cout << "Current bias is " << vadd.read_register(0) << std::endl;
+
+    //execute again
+    auto run3 = odma_krnl(buf);
+    auto run2 = idma_krnl(buf);
+    run3.wait();
+    run2.wait();
+
+    //check output again
+    buf.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    buf.read(ubuf);
+    if(ubuf[2] != (ubuf[0] + ubuf[1] + bias)){
         std::cout << "Test failed, got " << ubuf[2] << std::endl;
     } else {
         std::cout << "Test passed" << std::endl;

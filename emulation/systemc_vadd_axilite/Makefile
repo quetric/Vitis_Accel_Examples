@@ -4,8 +4,10 @@ XCLBIN=build/vadd.xclbin
 
 all: $(XCLBIN) host
 
-vadd.xo: src/vadd.cpp
-	create_sc_xo $<
+vadd.xo: src/vadd.cpp include/vadd.h
+	cp src/vadd.cpp vadd_xo_stub/ip_repo/xilinx_ip_vadd_1_0/sysc/
+	cp include/vadd.h vadd_xo_stub/ip_repo/xilinx_ip_vadd_1_0/sysc/
+	cd vadd_xo_stub; zip -r ../vadd.xo *
 
 idma.xo: src/io.cpp
 	v++ -c --platform $(PLATFORM) $< -k idma -o $@
